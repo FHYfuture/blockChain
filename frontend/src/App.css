@@ -36,3 +36,87 @@
     transform: rotate(360deg);
   }
 }
+
+body {
+  background-color: #282c34;
+  color: white;
+  font-size: 16px;
+}
+
+.App-header {
+  background-color: #1c1e24;
+  padding: 20px;
+  border-bottom: 2px solid #61dafb;
+  min-height: auto;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.App-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+main {
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.component-box {
+  background-color: #3a3f4a;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.component-box h2 {
+  margin-top: 0;
+  border-bottom: 1px solid #555;
+  padding-bottom: 10px;
+}
+
+.wallet-info p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+input, select, button {
+  font-size: 1rem;
+  padding: 8px 12px;
+  margin: 5px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background-color: #eee;
+  color: #222;
+}
+
+button {
+  background-color: #61dafb;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  color: #282c34;
+}
+
+button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-card {
+  background-color: #4a4f5a;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.activity-card h3 {
+  margin-top: 0;
+}
