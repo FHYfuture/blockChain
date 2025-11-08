@@ -21,22 +21,18 @@ describe("EasyBet", function () {
     const BetTokenFactory = await ethers.getContractFactory("BetToken", notary);
     const betToken = await BetTokenFactory.deploy();
     await betToken.deployed(); 
-    // 修正 (v5): 合约地址是 .address 属性
     const betTokenAddress = betToken.address; 
 
     // Deploy BetTicket
     const BetTicketFactory = await ethers.getContractFactory("BetTicket", notary);
     const betTicket = await BetTicketFactory.deploy();
     await betTicket.deployed(); 
-    // 修正 (v5): 合约地址是 .address 属性
     const betTicketAddress = betTicket.address; 
 
     // Deploy EasyBet
     const EasyBetFactory = await ethers.getContractFactory("EasyBet", notary);
-    // 这里的 betTokenAddress 和 betTicketAddress 现在是正确的地址了
     const easyBet = await EasyBetFactory.deploy(betTokenAddress, betTicketAddress);
     await easyBet.deployed(); 
-    // 修正 (v5): 合约地址是 .address 属性
     const easyBetAddress = easyBet.address; 
 
     // Transfer BetTicket ownership to EasyBet
@@ -60,14 +56,12 @@ describe("EasyBet", function () {
 
     it("Should set the right token addresses", async function () {
       const { easyBet, betToken, betTicket } = await loadFixture(deployFixture);
-      // 修正 (v5): 合约地址是 .address 属性
       expect(await easyBet.betToken()).to.equal(betToken.address);
       expect(await easyBet.betTicket()).to.equal(betTicket.address);
     });
 
     it("EasyBet should be the owner of BetTicket", async function () {
       const { easyBet, betTicket } = await loadFixture(deployFixture);
-      // 修正 (v5): 合约地址是 .address 属性
       expect(await betTicket.owner()).to.equal(easyBet.address);
     });
   });
@@ -116,12 +110,12 @@ describe("EasyBet", function () {
         .withArgs(activityId, (await player1.getAddress()), choiceA, betAmount, 1); 
 
       // Check activity state
-      const activity = await easyBet.activities(activityId);
+      // 修正: 调用新的 public getter 'getActivity'
+      const activity = await easyBet.getActivity(activityId);
       expect(activity.totalPool).to.equal(ethers.utils.parseEther("150")); 
       
       // Check ERC721 ticket
       expect(await betTicket.ownerOf(1)).to.equal(await player1.getAddress());
-      // 修正 v4 getter: 它返回单独的组件
       const [ticketActivityId, ticketChoiceIndex, ticketAmount] = await betTicket.ticketInfo(1);
       expect(ticketActivityId).to.equal(activityId);
       expect(ticketChoiceIndex).to.equal(choiceA);
