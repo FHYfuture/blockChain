@@ -3,7 +3,6 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, BigNumber } from "ethers";
 
-// 修正: 将 Signer 类型改为 'any' 以绕过 VSCode Linter 冲突
 interface DeployedContracts {
   easyBet: Contract;
   betToken: Contract;
@@ -38,11 +37,9 @@ describe("EasyBet", function () {
     // Transfer BetTicket ownership to EasyBet
     await betTicket.connect(notary).transferOwnership(easyBetAddress);
 
-    // Give players some BET tokens via faucet
     await betToken.connect(player1).faucet();
     await betToken.connect(player2).faucet();
-    
-    // Notary gets tokens for initial pool
+
     await betToken.connect(notary).faucet();
 
     return { easyBet, betToken, betTicket, notary, player1, player2 };
@@ -69,8 +66,8 @@ describe("EasyBet", function () {
   describe("Full Flow", function () {
     let contracts: DeployedContracts;
     const activityId = 1;
-    const choiceA = 0; // Index for "Team A"
-    const choiceB = 1; // Index for "Team B"
+    const choiceA = 0; 
+    const choiceB = 1;
 
     beforeEach(async function () {
       contracts = await loadFixture(deployFixture);
@@ -109,8 +106,6 @@ describe("EasyBet", function () {
         .to.emit(easyBet, "BetPlaced")
         .withArgs(activityId, (await player1.getAddress()), choiceA, betAmount, 1); 
 
-      // Check activity state
-      // 修正: 调用新的 public getter 'getActivity'
       const activity = await easyBet.getActivity(activityId);
       expect(activity.totalPool).to.equal(ethers.utils.parseEther("150")); 
       

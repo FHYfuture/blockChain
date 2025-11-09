@@ -2,9 +2,14 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import './App.css';
 import { connectWallet, Activity, BetInfo, SellOrder, BigNumber, ethers } from './ethers';
 import { EasyBet, BetToken, BetTicket } from "./contracts/typechain-types";
-import { providers, Signer } from 'ethers'; 
+import { providers, Signer } from 'ethers';
 
-// 1. 创建 Ethers/Web3 上下文
+interface EnhancedSellOrder extends SellOrder {
+  activityId: BigNumber;
+  choiceIndex: BigNumber;
+  amount: BigNumber;
+}
+
 interface Web3ContextType {
   connection: {
     provider: providers.Web3Provider;
@@ -17,7 +22,7 @@ interface Web3ContextType {
   notary: string;
   activities: Activity[];
   myTickets: { tokenId: BigNumber, info: BetInfo }[];
-  allSellOrders: SellOrder[];
+  allSellOrders: EnhancedSellOrder[];
   betBalance: string;
   refreshAll: () => void;
 }
@@ -29,10 +34,10 @@ function App() {
   const [notary, setNotary] = useState<string>("");
   const [activities, setActivities] = useState<Activity[]>([]);
   const [myTickets, setMyTickets] = useState<Web3ContextType['myTickets']>([]);
-  const [allSellOrders, setAllSellOrders] = useState<SellOrder[]>([]);
+  const [allSellOrders, setAllSellOrders] = useState<EnhancedSellOrder[]>([]);
   const [betBalance, setBetBalance] = useState<string>("0");
   const [loading, setLoading] = useState(false);
-  
+
   const account = connection?.account;
 
   const refreshAll = async () => {
@@ -41,40 +46,36 @@ function App() {
     setLoading(true);
 
     try {
-      // 1. 获取 Notary
       setNotary(await easyBet.notary());
 
-      // 2. 获取余额
       const balance = await betToken.balanceOf(account);
       setBetBalance(ethers.utils.formatEther(balance));
 
-      // 3. 获取所有活动
       const activityCount = await easyBet._activityCounter();
       const acts: Activity[] = [];
-      
+
       for (let i = 1; i <= activityCount.toNumber(); i++) {
         const actData = await easyBet.getActivity(i);
-        
+
         const choicesWithBets = await Promise.all(actData.choices.map(async (choice, index) => {
-            const amount = await easyBet.getChoiceBetAmount(i, index);
-            return { choice, amount };
+          const amount = await easyBet.getChoiceBetAmount(i, index);
+          return { choice, amount };
         }));
-        
+
         const act: Activity = {
-            id: actData.id,
-            description: actData.description,
-            choices: actData.choices,
-            endTime: actData.endTime,
-            totalPool: actData.totalPool,
-            resolved: actData.resolved,
-            winningChoice: actData.winningChoice,
-            choiceBets: choicesWithBets
+          id: actData.id,
+          description: actData.description,
+          choices: actData.choices,
+          endTime: actData.endTime,
+          totalPool: actData.totalPool,
+          resolved: actData.resolved,
+          winningChoice: actData.winningChoice,
+          choiceBets: choicesWithBets
         };
         acts.push(act);
       }
-      setActivities(acts.reverse()); 
+      setActivities(acts.reverse());
 
-      // 4. 获取我的彩票
       const ticketBalance = await betTicket.balanceOf(account);
       const tickets: Web3ContextType['myTickets'] = [];
       for (let i = 0; i < ticketBalance.toNumber(); i++) {
@@ -84,39 +85,42 @@ function App() {
       }
       setMyTickets(tickets);
 
-      // 5. [Bonus 2] 获取所有挂单
+     
       const listedTokenIds = await easyBet.getListedTokenIds();
       const orders = await Promise.all(
         listedTokenIds.map(async (tokenId) => {
-          
+
           const orderData = await easyBet.sellOrders(tokenId);
-          
+
           if (orderData.seller === ethers.constants.AddressZero) {
             return null; // 订单可能刚刚被成交
           }
-          
+
+          //  同时获取彩票的详细信息
+          const [activityId, choiceIndex, amount] = await betTicket.ticketInfo(tokenId);
+
           return {
-            tokenId: tokenId, 
+            tokenId: tokenId,
             seller: orderData.seller,
-            price: orderData.price
-          } as SellOrder; 
+            price: orderData.price,
+            activityId: activityId,  
+            choiceIndex: choiceIndex,  
+            amount: amount            
+          } as EnhancedSellOrder; // 使用新类型
         })
       );
-      
+
       const validOrders = orders
-        .filter((o): o is SellOrder => o !== null)
-        // [!!! BUG 修复 !!!]
-        // 使用 .sub(b.price).toNumber() 会在价格差异过大时导致溢出 (Overflow)
-        // 必须使用 .gt() (greater than) 或 .lt() (less than) 来比较 BigNumber
+        .filter((o): o is EnhancedSellOrder => o !== null)
         .sort((a, b) => {
-            if (a.price.lt(b.price)) {
-                return -1; // a 在前
-            }
-            if (a.price.gt(b.price)) {
-                return 1; // b 在前
-            }
-            return 0; // 相等
-        }); 
+          if (a.price.lt(b.price)) {
+            return -1;
+          }
+          if (a.price.gt(b.price)) {
+            return 1;
+          }
+          return 0;
+        });
 
       setAllSellOrders(validOrders);
 
@@ -126,7 +130,7 @@ function App() {
       setLoading(false);
     }
   };
-  
+
   const handleConnect = async () => {
     try {
       const conn = await connectWallet();
@@ -147,7 +151,7 @@ function App() {
     <Web3Ctx.Provider value={{ connection, notary, activities, myTickets, allSellOrders, betBalance, refreshAll }}>
       <div className="App">
         <header className="App-header">
-          <h1>EasyBet - 去中心化竞猜</h1>
+          <h1>EasyBet</h1>
           {!account ? (
             <button onClick={handleConnect}>连接 MetaMask</button>
           ) : (
@@ -167,10 +171,6 @@ function App() {
     </Web3Ctx.Provider>
   );
 }
-
-// --- (所有其他组件 WalletInfo, NotaryAdmin, ActivityList, ActivityCard, MyTickets, TicketCard, OrderBook 保持不变) ---
-// --- 您不需要修改它们 ---
-
 
 function WalletInfo() {
   const ctx = useContext(Web3Ctx)!;
@@ -212,7 +212,7 @@ function NotaryAdmin() {
       const { easyBet, betToken } = ctx.connection;
       const choiceArray = choices.split(',').map(s => s.trim());
       const endTimeSeconds = Math.floor(Date.now() / 1000) + (parseInt(endTime) * 60);
-      
+
       const poolAmount = ethers.utils.parseEther(pool);
 
       const approveTx = await betToken.approve(easyBet.address, poolAmount);
@@ -221,7 +221,7 @@ function NotaryAdmin() {
 
       const createTx = await easyBet.createActivity(desc, choiceArray, endTimeSeconds, poolAmount);
       await createTx.wait();
-      
+
       alert("活动创建成功!");
       ctx.refreshAll();
     } catch (e) {
@@ -276,7 +276,7 @@ function ActivityCard({ activity }: { activity: Activity }) {
 
       const betTx = await easyBet.placeBet(activity.id, choice, betAmount);
       await betTx.wait();
-      
+
       alert("下注成功!");
       setAmount("");
       ctx.refreshAll();
@@ -287,20 +287,20 @@ function ActivityCard({ activity }: { activity: Activity }) {
       setLoading(false);
     }
   };
-  
+
   const handleResolve = async () => {
     if (!ctx.connection) return;
     const winningChoice = prompt(`输入获胜选项 (0 - ${activity.choices.length - 1}):`);
     if (winningChoice === null) return;
-    
+
     setLoading(true);
     try {
       await ctx.connection.easyBet.resolveActivity(activity.id, parseInt(winningChoice));
       alert("结算成功!");
       ctx.refreshAll();
     } catch (e) {
-       console.error(e);
-       alert("结算失败");
+      console.error(e);
+      alert("结算失败");
     } finally {
       setLoading(false);
     }
@@ -319,9 +319,9 @@ function ActivityCard({ activity }: { activity: Activity }) {
 
       <div className="choice-bets">
         {activity.choiceBets?.map((cb: { choice: string, amount: BigNumber }, index: number) => (
-            <p key={index} style={{fontSize: "0.9em", margin: "2px"}}>
-                {cb.choice}: {ethers.utils.formatEther(cb.amount)} BET
-            </p>
+          <p key={index} style={{ fontSize: "0.9em", margin: "2px" }}>
+            {cb.choice}: {ethers.utils.formatEther(cb.amount)} BET
+          </p>
         ))}
       </div>
 
@@ -332,24 +332,25 @@ function ActivityCard({ activity }: { activity: Activity }) {
               <option key={i} value={i}>{c}</option>
             ))}
           </select>
-          <input 
-            type="text" 
-            value={amount} 
-            onChange={e => setAmount(e.target.value)} 
+          <input
+            type="text"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
             placeholder="BET 金额"
           />
           <button onClick={handleBet} disabled={loading}>{loading ? "处理中..." : "下注"}</button>
         </div>
       )}
-      
+
       {isNotary && !isResolved && (
-        <button onClick={handleResolve} disabled={loading} style={{backgroundColor: 'darkred', marginTop: '10px'}}>
+        <button onClick={handleResolve} disabled={loading} style={{ backgroundColor: 'darkred', marginTop: '10px' }}>
           {loading ? "结算中..." : "结算活动"}
         </button>
       )}
     </div>
   );
 }
+
 
 function MyTickets() {
   const ctx = useContext(Web3Ctx)!;
@@ -370,13 +371,13 @@ function MyTickets() {
       {myTickets.map(({ tokenId, info }) => {
         const activity = activities.find(a => a.id.eq(info.activityId));
         if (!activity) return null;
-        
+
         return (
-          <TicketCard 
-            key={tokenId.toString()} 
-            tokenId={tokenId} 
-            info={info} 
-            activity={activity} 
+          <TicketCard
+            key={tokenId.toString()}
+            tokenId={tokenId}
+            info={info}
+            activity={activity}
           />
         );
       })}
@@ -388,7 +389,7 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
   const ctx = useContext(Web3Ctx)!;
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   const choiceStr = activity.choices[info.choiceIndex.toNumber()];
   let status = "进行中";
   let canClaim = false;
@@ -401,12 +402,11 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
       status = "未获胜";
     }
   }
-  
+
   // 检查这张票是否已挂单
   const isListed = ctx.allSellOrders.some(order => order.tokenId.eq(tokenId));
 
   const handleClaim = async () => {
-    // ... (代码无变化) ...
     if (!ctx.connection) return;
     setLoading(true);
     try {
@@ -423,7 +423,6 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
   };
 
   const handleList = async () => {
-    // ... (代码无变化) ...
     if (!ctx.connection || !price) return;
     setLoading(true);
     try {
@@ -436,7 +435,7 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
 
       const listTx = await easyBet.listTicket(tokenId, listPrice);
       await listTx.wait();
-      
+
       alert("挂单成功!");
       setPrice("");
       ctx.refreshAll();
@@ -448,7 +447,6 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
     }
   };
 
-  // 新增: 取消挂单
   const handleUnlist = async () => {
     if (!ctx.connection) return;
     setLoading(true);
@@ -466,22 +464,21 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
   };
 
   return (
-    <div className="ticket-card" style={{border: "1px solid #555", margin: "10px", padding: "10px"}}>
+    <div className="ticket-card" style={{ border: "1px solid #555", margin: "10px", padding: "10px" }}>
       <p><b>彩票 #{tokenId.toString()}</b> | 状态: {status}</p>
       <p>活动: {activity.description}</p>
       <p>你的选择: {choiceStr}</p>
       <p>下注金额: {ethers.utils.formatEther(info.amount)} BET</p>
 
-      {/* 修正: 挂单/取消挂单 逻辑 */}
       {status === "进行中" && (
         <div className="ticket-actions">
           {isListed ? (
-            <button onClick={handleUnlist} disabled={loading} style={{backgroundColor: 'darkorange'}}>
+            <button onClick={handleUnlist} disabled={loading} style={{ backgroundColor: 'darkorange' }}>
               {loading ? "..." : "取消挂单"}
             </button>
           ) : (
             <>
-              <input 
+              <input
                 type="text"
                 value={price}
                 onChange={e => setPrice(e.target.value)}
@@ -492,24 +489,24 @@ function TicketCard({ tokenId, info, activity }: { tokenId: BigNumber, info: Bet
           )}
         </div>
       )}
-      
+
       {canClaim && (
-         <button onClick={handleClaim} disabled={loading} style={{backgroundColor: 'darkgreen'}}>
-           {loading ? "领取中..." : "领取奖金"}
-         </button>
+        <button onClick={handleClaim} disabled={loading} style={{ backgroundColor: 'darkgreen' }}>
+          {loading ? "领取中..." : "领取奖金"}
+        </button>
       )}
     </div>
   );
 }
 
-// --- 新增 [Bonus 2] 订单簿组件 ---
+
 
 function OrderBook() {
   const ctx = useContext(Web3Ctx)!;
+  // 从上下文中同时获取 activities
   const { allSellOrders, connection, activities, refreshAll } = ctx;
-  const [loading, setLoading] = useState<string>(""); // 存储正在加载的 tokenId
+  const [loading, setLoading] = useState<string>("");
 
-  // 过滤掉我们自己的挂单
   const ordersToShow = allSellOrders.filter(
     order => order.seller.toLowerCase() !== connection?.account.toLowerCase()
   );
@@ -523,18 +520,16 @@ function OrderBook() {
     );
   }
 
-  const handleBuy = async (order: SellOrder) => {
+  const handleBuy = async (order: EnhancedSellOrder) => { 
     if (!connection) return;
     setLoading(order.tokenId.toString());
     try {
       const { easyBet, betToken } = connection;
-      
-      // 1. 授权
+
       const approveTx = await betToken.approve(easyBet.address, order.price);
       await approveTx.wait();
       alert("授权成功，正在购买...");
 
-      // 2. 购买
       const buyTx = await easyBet.buyTicket(order.tokenId);
       await buyTx.wait();
 
@@ -547,29 +542,32 @@ function OrderBook() {
       setLoading("");
     }
   };
-  
-  // 帮助函数，用于查找彩票信息
-  const getTicketDesc = (tokenId: BigNumber) => {
-    // 在真实应用中，我们会批量获取或缓存这些信息
-    // 为简单起见，我们暂时只显示 tokenId
-    // (因为在 App.tsx 中获取 ticketInfo 比较麻烦)
-    return `彩票 #${tokenId.toString()}`;
-  };
 
   return (
-    <div className="component-box" style={{backgroundColor: '#2c3e50'}}>
+    <div className="component-box" style={{ backgroundColor: '#2c3e50' }}>
       <h2>彩票市场 (订单簿) [Bonus 2]</h2>
       <p>按最优价格（最低价）排序：</p>
       {ordersToShow.map((order) => {
         const isLoading = loading === order.tokenId.toString();
+
+        const activity = activities.find(a => a.id.eq(order.activityId));
+        const activityDesc = activity ? activity.description : `活动 #${order.activityId.toString()}`;
+        const choiceStr = activity ? activity.choices[order.choiceIndex.toNumber()] : `选项 #${order.choiceIndex.toString()}`;
+
         return (
-          <div key={order.tokenId.toString()} className="ticket-card" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div key={order.tokenId.toString()} className="ticket-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <p><b>{getTicketDesc(order.tokenId)}</b></p>
-              <p>价格: {ethers.utils.formatEther(order.price)} BET</p>
-              <p style={{fontSize: '0.8em'}}>卖家: {order.seller.substring(0, 6)}...</p>
+              <p><b>彩票 #{order.tokenId.toString()}</b></p>
+              <p style={{ fontSize: '0.9em', color: '#eee', margin: '2px 0' }}>
+                活动: {activityDesc}
+              </p>
+              <p style={{ fontSize: '0.9em', color: '#eee', margin: '2px 0' }}>
+                选项: {choiceStr}
+              </p>
+              <p style={{ marginTop: '5px' }}>价格: {ethers.utils.formatEther(order.price)} BET</p>
+              {/* <p style={{ fontSize: '0.8em' }}>卖家: {order.seller.substring(0, 6)}...</p> */}
             </div>
-            <button onClick={() => handleBuy(order)} disabled={isLoading} style={{backgroundColor: 'darkgreen'}}>
+            <button onClick={() => handleBuy(order)} disabled={isLoading} style={{ backgroundColor: 'darkgreen' }}>
               {isLoading ? "处理中..." : "购买"}
             </button>
           </div>

@@ -1,15 +1,11 @@
-
 import { ethers, providers, Signer, BigNumber } from "ethers";
-// 修正 1: 从本地路径导入，以满足 Create React App
+
 import { EasyBet, EasyBet__factory, BetToken, BetToken__factory, BetTicket, BetTicket__factory } from "./contracts/typechain-types";
 
-// --- 合约地址 (请在部署后修改为你自己的地址) ---
-// 粘贴你刚刚在“第 2 步”中复制的新地址
-const EASYBET_ADDRESS = "0xc4F7F5f4db7c6041289A8BdF8CeADC8950Eb69cD";
-const BETTOKEN_ADDRESS = "0xbABB33b260C7D3b2DeB09F01db08545c7E7ac73b";
-const BETTICKET_ADDRESS = "0xd81F0a7c1A8549152105508DbDbea8c735B0d94C";
+const EASYBET_ADDRESS = "0x863cF9F7379b04aEDcC6F73429bb14258c5c1e48";
+const BETTOKEN_ADDRESS = "0x1587F4b81DAee79151a0967ceC4566b86c62E1B6";
+const BETTICKET_ADDRESS = "0x4768496bB505e98Dd86464A6642E4e0569f83135";
 
-// --------------------------------------------------
 
 export { BigNumber, ethers }; 
 
@@ -42,7 +38,7 @@ export const connectWallet = async (): Promise<EthersConnection> => {
   return { provider, signer, account, easyBet, betToken, betTicket };
 };
 
-// 修正 2: 这是从我们新的 EasyBet.sol 中 getActivity() 返回的类型
+
 export interface Activity {
   id: BigNumber;
   description: string;
