@@ -37,6 +37,7 @@ export interface EasyBetInterface extends utils.Interface {
     "createActivity(string,string[],uint256,uint256)": FunctionFragment;
     "getActivity(uint256)": FunctionFragment;
     "getChoiceBetAmount(uint256,uint256)": FunctionFragment;
+    "getListedTokenIds()": FunctionFragment;
     "listTicket(uint256,uint256)": FunctionFragment;
     "notary()": FunctionFragment;
     "placeBet(uint256,uint256,uint256)": FunctionFragment;
@@ -55,6 +56,7 @@ export interface EasyBetInterface extends utils.Interface {
       | "createActivity"
       | "getActivity"
       | "getChoiceBetAmount"
+      | "getListedTokenIds"
       | "listTicket"
       | "notary"
       | "placeBet"
@@ -93,6 +95,10 @@ export interface EasyBetInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "getChoiceBetAmount",
     values: [PromiseOrValue<BigNumberish>, PromiseOrValue<BigNumberish>]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getListedTokenIds",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "listTicket",
@@ -141,6 +147,10 @@ export interface EasyBetInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "getChoiceBetAmount",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getListedTokenIds",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "listTicket", data: BytesLike): Result;
@@ -342,6 +352,8 @@ export interface EasyBet extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[BigNumber]>;
 
+    getListedTokenIds(overrides?: CallOverrides): Promise<[BigNumber[]]>;
+
     listTicket(
       _tokenId: PromiseOrValue<BigNumberish>,
       _price: PromiseOrValue<BigNumberish>,
@@ -424,6 +436,8 @@ export interface EasyBet extends BaseContract {
     _choiceIndex: PromiseOrValue<BigNumberish>,
     overrides?: CallOverrides
   ): Promise<BigNumber>;
+
+  getListedTokenIds(overrides?: CallOverrides): Promise<BigNumber[]>;
 
   listTicket(
     _tokenId: PromiseOrValue<BigNumberish>,
@@ -515,6 +529,8 @@ export interface EasyBet extends BaseContract {
       _choiceIndex: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
+
+    getListedTokenIds(overrides?: CallOverrides): Promise<BigNumber[]>;
 
     listTicket(
       _tokenId: PromiseOrValue<BigNumberish>,
@@ -673,6 +689,8 @@ export interface EasyBet extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    getListedTokenIds(overrides?: CallOverrides): Promise<BigNumber>;
+
     listTicket(
       _tokenId: PromiseOrValue<BigNumberish>,
       _price: PromiseOrValue<BigNumberish>,
@@ -740,6 +758,8 @@ export interface EasyBet extends BaseContract {
       _choiceIndex: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
+
+    getListedTokenIds(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     listTicket(
       _tokenId: PromiseOrValue<BigNumberish>,
