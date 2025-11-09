@@ -5,9 +5,9 @@ import { EasyBet, EasyBet__factory, BetToken, BetToken__factory, BetTicket, BetT
 
 // --- 合约地址 (请在部署后修改为你自己的地址) ---
 // 粘贴你刚刚在“第 2 步”中复制的新地址
-const EASYBET_ADDRESS = "0xc7D8597e99Fa525dEF8e99F3B47c5CA93699232E";
-const BETTOKEN_ADDRESS = "0xbc3085dc3C22f72322618c5a890b75F4fA098B5C";
-const BETTICKET_ADDRESS = "0x1262d14b39cFB10fFa838F68811c9e1cec794804";
+const EASYBET_ADDRESS = "0xc4F7F5f4db7c6041289A8BdF8CeADC8950Eb69cD";
+const BETTOKEN_ADDRESS = "0xbABB33b260C7D3b2DeB09F01db08545c7E7ac73b";
+const BETTICKET_ADDRESS = "0xd81F0a7c1A8549152105508DbDbea8c735B0d94C";
 
 // --------------------------------------------------
 

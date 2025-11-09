@@ -89,27 +89,34 @@ function App() {
       const orders = await Promise.all(
         listedTokenIds.map(async (tokenId) => {
           
-          // ------------------- 唯一的修改在这里 -------------------
-          // 修正: Ethers v5 getter 返回一个带命名属性的对象
           const orderData = await easyBet.sellOrders(tokenId);
           
           if (orderData.seller === ethers.constants.AddressZero) {
             return null; // 订单可能刚刚被成交
           }
           
-          // 使用正确的变量
           return {
             tokenId: tokenId, 
             seller: orderData.seller,
             price: orderData.price
           } as SellOrder; 
-          // -----------------------------------------------------
         })
       );
       
       const validOrders = orders
         .filter((o): o is SellOrder => o !== null)
-        .sort((a, b) => a.price.sub(b.price).toNumber()); 
+        // [!!! BUG 修复 !!!]
+        // 使用 .sub(b.price).toNumber() 会在价格差异过大时导致溢出 (Overflow)
+        // 必须使用 .gt() (greater than) 或 .lt() (less than) 来比较 BigNumber
+        .sort((a, b) => {
+            if (a.price.lt(b.price)) {
+                return -1; // a 在前
+            }
+            if (a.price.gt(b.price)) {
+                return 1; // b 在前
+            }
+            return 0; // 相等
+        }); 
 
       setAllSellOrders(validOrders);
 
@@ -162,8 +169,8 @@ function App() {
 }
 
 // --- (所有其他组件 WalletInfo, NotaryAdmin, ActivityList, ActivityCard, MyTickets, TicketCard, OrderBook 保持不变) ---
-// --- 为简洁起见，我将省略它们，因为它们是 100% 正确的 ---
-// --- 你只需要替换 App 函数和 refreshAll 函数即可 ---
+// --- 您不需要修改它们 ---
+
 
 function WalletInfo() {
   const ctx = useContext(Web3Ctx)!;

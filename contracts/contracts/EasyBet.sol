@@ -35,13 +35,9 @@ contract EasyBet {
     mapping(uint256 => Activity) private activities;
     mapping(uint256 => SellOrder) public sellOrders;
     
-    // --- 订单簿 [Bonus 2] ---
     uint256[] private _listedTokenIds;
-    
-    // 修正: 0 = 未找到, 1 = 索引 0, 2 = 索引 1, ...
     mapping(uint256 => uint256) private _listedTokenIndex;
 
-    // --- (Getter 函数和 Events 保持不变) ---
     function getActivity(uint256 _activityId)
         public
         view
@@ -66,6 +62,7 @@ contract EasyBet {
             activity.winningChoice
         );
     }
+    
     function getChoiceBetAmount(uint256 _activityId, uint256 _choiceIndex)
         public
         view
@@ -73,9 +70,11 @@ contract EasyBet {
     {
         return activities[_activityId].totalAmountBetOnChoice[_choiceIndex];
     }
+    
     function getListedTokenIds() public view returns (uint256[] memory) {
         return _listedTokenIds;
     }
+    
     event ActivityCreated(
         uint256 indexed activityId,
         string description,
@@ -108,16 +107,18 @@ contract EasyBet {
         address indexed buyer,
         uint256 price
     );
-    // --- (Constructor, Modifiers, createActivity, resolveActivity, placeBet, claimWinnings 保持不变) ---
+
     constructor(address _betTokenAddress, address _betTicketAddress) {
         notary = msg.sender;
         betToken = BetToken(_betTokenAddress);
         betTicket = BetTicket(_betTicketAddress);
     }
+    
     modifier onlyNotary() {
         require(msg.sender == notary, "EasyBet: Only notary can call this");
         _;
     }
+
     function createActivity(
         string calldata _description,
         string[] calldata _choices,
@@ -126,6 +127,7 @@ contract EasyBet {
     ) external onlyNotary {
         require(_choices.length >= 2, "EasyBet: Must have at least 2 choices");
         require(_endTime > block.timestamp, "EasyBet: End time must be in the future");
+        
         if (_initialPoolAmount > 0) {
             bool success = betToken.transferFrom(
                 msg.sender,
@@ -134,6 +136,7 @@ contract EasyBet {
             );
             require(success, "EasyBet: Initial pool transfer failed");
         }
+        
         _activityCounter++;
         uint256 activityId = _activityCounter;
         Activity storage newActivity = activities[activityId];
@@ -142,9 +145,11 @@ contract EasyBet {
         newActivity.endTime = _endTime;
         newActivity.totalPool = _initialPoolAmount;
         newActivity.resolved = false;
+        
         for (uint256 i = 0; i < _choices.length; i++) {
             newActivity.choices.push(_choices[i]);
         }
+        
         emit ActivityCreated(
             activityId,
             _description,
@@ -153,6 +158,7 @@ contract EasyBet {
             _initialPoolAmount
         );
     }
+
     function resolveActivity(
         uint256 _activityId,
         uint256 _winningChoice
@@ -164,10 +170,12 @@ contract EasyBet {
             _winningChoice < activity.choices.length,
             "EasyBet: Invalid winning choice"
         );
+        
         activity.resolved = true;
         activity.winningChoice = _winningChoice;
         emit ActivityResolved(_activityId, _winningChoice);
     }
+
     function placeBet(
         uint256 _activityId,
         uint256 _choiceIndex,
@@ -185,22 +193,26 @@ contract EasyBet {
             "EasyBet: Invalid choice"
         );
         require(_amount > 0, "EasyBet: Amount must be positive");
+        
         bool success = betToken.transferFrom(
             msg.sender,
             address(this),
             _amount
         );
         require(success, "EasyBet: Bet token transfer failed");
+        
         activity.totalPool = activity.totalPool.add(_amount);
         activity.totalAmountBetOnChoice[_choiceIndex] = activity
             .totalAmountBetOnChoice[_choiceIndex]
             .add(_amount);
+            
         uint256 tokenId = betTicket.mintTicket(
             msg.sender,
             _activityId,
             _choiceIndex,
             _amount
         );
+        
         emit BetPlaced(
             _activityId,
             msg.sender,
@@ -209,11 +221,13 @@ contract EasyBet {
             tokenId
         );
     }
+
     function claimWinnings(uint256 _tokenId) external {
         require(
             betTicket.ownerOf(_tokenId) == msg.sender,
             "EasyBet: Not owner of ticket"
         );
+        
         (uint256 activityId, uint256 choiceIndex, uint256 amount) = betTicket.ticketInfo(_tokenId);
         Activity storage activity = activities[activityId];
         require(activity.resolved, "EasyBet: Activity not yet resolved");
@@ -221,43 +235,35 @@ contract EasyBet {
             choiceIndex == activity.winningChoice,
             "EasyBet: Not a winning ticket"
         );
+        
         uint256 totalWinningBetAmount = activity.totalAmountBetOnChoice[
             activity.winningChoice
         ];
         require(totalWinningBetAmount > 0, "EasyBet: No winning bets on this option");
+        
         uint256 winnings = (amount.mul(activity.totalPool)).div(
             totalWinningBetAmount
         );
         require(winnings > 0, "EasyBet: No winnings to claim");
+        
         betTicket.burn(_tokenId);
         bool success = betToken.transfer(msg.sender, winnings);
         require(success, "EasyBet: Winnings transfer failed");
+        
         emit WinningsClaimed(_tokenId, msg.sender, winnings);
     }
 
-    // --- [Bonus 2] 升级 Marketplace 函数 ---
-
-    /**
-     * @dev 从挂单数组中移除一个 tokenId (O(1) 效率)
-     * 修正: 增加了一个 `if` 语句来正确处理“移除最后一个元素”的边缘情况
-     */
     function _removeListedToken(uint256 _tokenId) private {
-        // 1. 获取要移除的 token 的索引 (0-based)
         uint256 index = _listedTokenIndex[_tokenId] - 1;
         uint256 lastIndex = _listedTokenIds.length - 1;
 
-        // 2. 检查我们是不是在移除最后一个元素
         if (index != lastIndex) {
-            // 2a. 不是最后一个：将最后一个元素移到当前位置
             uint256 lastTokenId = _listedTokenIds[lastIndex];
             _listedTokenIds[index] = lastTokenId;
-            // 更新被移动的 token 的索引 (存储 1-based)
             _listedTokenIndex[lastTokenId] = index + 1;
         }
         
-        // 3. 移除数组的最后一个元素
         _listedTokenIds.pop();
-        // 4. 将已移除的 token 的索引设为 0 (未找到)
         delete _listedTokenIndex[_tokenId];
     }
 
@@ -270,7 +276,6 @@ contract EasyBet {
             betTicket.getApproved(_tokenId) == address(this),
             "EasyBet: Contract not approved to transfer this ticket"
         );
-
         (uint256 activityId, , ) = betTicket.ticketInfo(_tokenId);
         
         require(
@@ -279,15 +284,11 @@ contract EasyBet {
         );
         require(_price > 0, "EasyBet: Price must be positive");
         
-        // 修正: 检查索引是否为 0 (即 "未找到")
         require(_listedTokenIndex[_tokenId] == 0, "EasyBet: Ticket already listed");
-
-        // 记录订单
+        
         sellOrders[_tokenId] = SellOrder(_tokenId, msg.sender, _price);
         
-        // [Bonus 2] 添加到可遍历数组
         _listedTokenIds.push(_tokenId);
-        // 修正: 存储 1-based 索引 (.length 在 push 后就是 1-based)
         _listedTokenIndex[_tokenId] = _listedTokenIds.length;
         
         emit TicketListed(_tokenId, msg.sender, _price);
@@ -297,17 +298,11 @@ contract EasyBet {
         SellOrder memory order = sellOrders[_tokenId];
         require(order.seller == msg.sender, "EasyBet: Not lister");
         
-        // 修正: 确保它真的在列表中
         require(_listedTokenIndex[_tokenId] > 0, "EasyBet: Ticket not listed");
 
-        // [Bonus 2] 从数组中移除
         _removeListedToken(_tokenId);
 
         delete sellOrders[_tokenId];
-        
-        if (betTicket.getApproved(_tokenId) == address(this)) {
-            betTicket.approve(address(0), _tokenId);
-        }
 
         emit TicketUnlisted(_tokenId);
     }
@@ -316,17 +311,15 @@ contract EasyBet {
         SellOrder memory order = sellOrders[_tokenId];
         require(order.seller != address(0), "EasyBet: Ticket not for sale");
         require(order.seller != msg.sender, "EasyBet: Cannot buy your own ticket");
-
+        
         (uint256 activityId, , ) = betTicket.ticketInfo(_tokenId);
 
         require(
             !activities[activityId].resolved,
             "EasyBet: Cannot buy ticket for resolved activity"
         );
-        
-        // 修正: 确保它真的在列表中
         require(_listedTokenIndex[_tokenId] > 0, "EasyBet: Ticket not listed");
-
+        
         bool paymentSuccess = betToken.transferFrom(
             msg.sender,
             order.seller,
@@ -336,9 +329,7 @@ contract EasyBet {
 
         betTicket.transferFrom(order.seller, msg.sender, _tokenId);
 
-        // [Bonus 2] 从数组中移除
         _removeListedToken(_tokenId);
-
         delete sellOrders[_tokenId];
 
         emit TicketSold(_tokenId, order.seller, msg.sender, order.price);
